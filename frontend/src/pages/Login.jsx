@@ -1,5 +1,9 @@
 import { useState } from "react"
 
+import {
+  apiFetch
+} from "../api"
+
 
 function Login({
   onLoginSuccess
@@ -30,22 +34,23 @@ function Login({
 
     try {
 
-      const response = await fetch(
-        "http://127.0.0.1:8000/auth/login",
-        {
-          method: "POST",
+      const response =
+        await apiFetch(
+          "/auth/login",
+          {
+            method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
+            headers: {
+              "Content-Type":
+                "application/json"
+            },
 
-          body: JSON.stringify({
-            username: username,
-            password: password
-          })
-        }
-      )
+            body: JSON.stringify({
+              username,
+              password
+            })
+          }
+        )
 
 
       const data =
@@ -78,7 +83,7 @@ function Login({
       )
 
       setError(
-        "Unable to connect to the server. Please make sure the backend is running."
+        "Unable to sign in. Please check your credentials or try again."
       )
 
     } finally {
