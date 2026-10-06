@@ -1,4 +1,7 @@
-const API_URL = "http://127.0.0.1:8000"
+const API_URL = (
+  import.meta.env.VITE_API_URL ||
+  "http://127.0.0.1:8000"
+).replace(/\/+$/, "")
 
 
 export async function apiFetch(
@@ -23,8 +26,14 @@ export async function apiFetch(
   }
 
 
+  const normalizedEndpoint =
+    endpoint.startsWith("/")
+      ? endpoint
+      : `/${endpoint}`
+
+
   const response = await fetch(
-    `${API_URL}${endpoint}`,
+    `${API_URL}${normalizedEndpoint}`,
     {
       ...options,
       headers
