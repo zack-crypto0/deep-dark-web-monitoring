@@ -11,6 +11,18 @@ from elasticsearch import (
 load_dotenv()
 
 
+# ==========================================
+# CONFIGURATION
+# ==========================================
+
+ELASTICSEARCH_CLOUD_ID = os.getenv(
+    "ELASTICSEARCH_CLOUD_ID"
+)
+
+ELASTICSEARCH_API_KEY = os.getenv(
+    "ELASTICSEARCH_API_KEY"
+)
+
 ELASTICSEARCH_URL = os.getenv(
     "ELASTICSEARCH_URL",
     "https://localhost:9200"
@@ -39,21 +51,65 @@ INDEX_NAME = "ddw_findings"
 
 def get_elasticsearch_client():
 
+    # ======================================
+    # ELASTIC CLOUD MODE
+    # ======================================
+
+    if ELASTICSEARCH_CLOUD_ID:
+
+        # Preferred authentication:
+        # Elastic Cloud API Key
+        if ELASTICSEARCH_API_KEY:
+
+            return Elasticsearch(
+                cloud_id=ELASTICSEARCH_CLOUD_ID,
+                api_key=ELASTICSEARCH_API_KEY,
+                request_timeout=10
+            )
+
+
+        # Fallback:
+        # username + password
+        if ELASTICSEARCH_PASSWORD:
+
+            return Elasticsearch(
+                cloud_id=ELASTICSEARCH_CLOUD_ID,
+                basic_auth=(
+                    ELASTICSEARCH_USERNAME,
+                    ELASTICSEARCH_PASSWORD
+                ),
+                request_timeout=10
+            )
+
+
+        raise RuntimeError(
+            "Elastic Cloud authentication "
+            "is not configured."
+        )
+
+
+    # ======================================
+    # LOCAL ELASTICSEARCH MODE
+    # ======================================
+
     if not ELASTICSEARCH_PASSWORD:
 
         raise RuntimeError(
-            "ELASTICSEARCH_PASSWORD is not configured"
+            "ELASTICSEARCH_PASSWORD "
+            "is not configured."
         )
 
 
     if not ELASTICSEARCH_CA_CERT:
 
         raise RuntimeError(
-            "ELASTICSEARCH_CA_CERT is not configured"
+            "ELASTICSEARCH_CA_CERT "
+            "is not configured for "
+            "local Elasticsearch."
         )
 
 
-    client = Elasticsearch(
+    return Elasticsearch(
 
         ELASTICSEARCH_URL,
 
@@ -66,9 +122,6 @@ def get_elasticsearch_client():
 
         request_timeout=10
     )
-
-
-    return client
 
 
 # ==========================================
@@ -278,10 +331,6 @@ def update_finding_index_status(
 
 
     except NotFoundError:
-
-        # PostgreSQL remains source of truth.
-        # Missing ES document can be restored
-        # during full synchronization.
 
         print(
             "Finding not present "
