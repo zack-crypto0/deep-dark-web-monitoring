@@ -8,6 +8,10 @@ import {
   Routes
 } from "react-router-dom"
 
+import {
+  apiFetch
+} from "./api"
+
 import Dashboard from "./pages/Dashboard"
 import Watchlist from "./pages/Watchlist"
 import Findings from "./pages/Findings"
@@ -100,18 +104,10 @@ function App() {
 
       if (token) {
 
-        await fetch(
-          "http://127.0.0.1:8000/auth/logout",
+        await apiFetch(
+          "/auth/logout",
           {
-
-            method: "POST",
-
-            headers: {
-
-              Authorization:
-                `Bearer ${token}`
-
-            }
+            method: "POST"
           }
         )
 
@@ -297,60 +293,62 @@ function App() {
               {/* ADMIN ONLY */}
               {/* ================================= */}
 
-              {user?.role ===
+              {
+                user?.role ===
                 "admin" && (
 
-                <>
+                  <>
 
-                  <div className="pt-5 pb-2 px-4">
+                    <div className="pt-5 pb-2 px-4">
 
-                    <p className="text-xs text-slate-500 font-semibold">
+                      <p className="text-xs text-slate-500 font-semibold">
 
-                      ADMINISTRATION
+                        ADMINISTRATION
 
-                    </p>
+                      </p>
 
-                  </div>
-
-
-                  <NavLink
-                    to="/users"
-
-                    className={
-                      ({ isActive }) =>
-                        `block px-4 py-3 rounded-lg transition ${
-                          isActive
-                            ? "bg-blue-600 text-white"
-                            : "text-slate-300 hover:bg-slate-800"
-                        }`
-                    }
-                  >
-
-                    User Management
-
-                  </NavLink>
+                    </div>
 
 
-                  <NavLink
-                    to="/audit"
+                    <NavLink
+                      to="/users"
 
-                    className={
-                      ({ isActive }) =>
-                        `block px-4 py-3 rounded-lg transition ${
-                          isActive
-                            ? "bg-blue-600 text-white"
-                            : "text-slate-300 hover:bg-slate-800"
-                        }`
-                    }
-                  >
+                      className={
+                        ({ isActive }) =>
+                          `block px-4 py-3 rounded-lg transition ${
+                            isActive
+                              ? "bg-blue-600 text-white"
+                              : "text-slate-300 hover:bg-slate-800"
+                          }`
+                      }
+                    >
 
-                    Audit Logs
+                      User Management
 
-                  </NavLink>
+                    </NavLink>
 
-                </>
 
-              )}
+                    <NavLink
+                      to="/audit"
+
+                      className={
+                        ({ isActive }) =>
+                          `block px-4 py-3 rounded-lg transition ${
+                            isActive
+                              ? "bg-blue-600 text-white"
+                              : "text-slate-300 hover:bg-slate-800"
+                          }`
+                      }
+                    >
+
+                      Audit Logs
+
+                    </NavLink>
+
+                  </>
+
+                )
+              }
 
 
             </nav>
@@ -488,6 +486,7 @@ function App() {
 
                 <Route
                   path="/"
+
                   element={
                     <Dashboard />
                   }
@@ -496,6 +495,7 @@ function App() {
 
                 <Route
                   path="/watchlist"
+
                   element={
                     <Watchlist />
                   }
@@ -504,13 +504,16 @@ function App() {
 
                 <Route
                   path="/findings"
+
                   element={
                     <Findings />
                   }
                 />
 
+
                 <Route
                   path="/findings/:findingId"
+
                   element={
                     <FindingDetail />
                   }
@@ -519,6 +522,7 @@ function App() {
 
                 <Route
                   path="/alerts"
+
                   element={
                     <Alerts />
                   }
@@ -527,6 +531,7 @@ function App() {
 
                 <Route
                   path="/reports"
+
                   element={
                     <Reports />
                   }
@@ -610,6 +615,7 @@ function App() {
         </div>
 
       )}
+
 
     </BrowserRouter>
 
