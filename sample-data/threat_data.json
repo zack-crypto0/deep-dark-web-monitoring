@@ -1,0 +1,20 @@
+[
+  {
+    "source_name": "Synthetic Leak Forum",
+    "source_type": "sample",
+    "source_reference": "sample://forum/post/001",
+    "content": "Possible leaked credentials related to example.com were observed in a synthetic dataset."
+  },
+  {
+    "source_name": "Synthetic Paste Site",
+    "source_type": "sample",
+    "source_reference": "sample://paste/002",
+    "content": "No monitored assets were detected in this sample record."
+  },
+  {
+    "source_name": "Synthetic Threat Feed",
+    "source_type": "sample",
+    "source_reference": "sample://feed/003",
+    "content": "Security discussion mentions admin@example.com and possible credential exposure."
+  }
+]
