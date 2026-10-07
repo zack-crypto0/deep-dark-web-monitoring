@@ -240,9 +240,9 @@ SAMPLE_DATA_FILE = (
 
 
 
-CONTROLLED_START_URL = (
+CONTROLLED_START_FILE = (
 
-    "http://127.0.0.1:8081/index.html"
+    "index.html"
 
 )
 
@@ -859,10 +859,8 @@ def run_threat_scan(
                 threat_records = (
 
                     crawl_controlled_source(
-
-                        CONTROLLED_START_URL
-
-                    )
+    CONTROLLED_START_FILE
+)
 
                 )
 
@@ -902,13 +900,10 @@ def run_threat_scan(
 
                     detail=(
 
-                        "Controlled crawler source "
-
-                        "is unavailable. Start the "
-
-                        "local controlled source "
-
-                        "on port 8081 and retry."
+                        "Controlled fixture source "
+                        "is unavailable. Verify that "
+                        "the bundled controlled fixture "
+                        "files exist."
 
                     )
 

@@ -2,27 +2,30 @@ import hashlib
 
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlparse
-from urllib.request import Request, urlopen
+from pathlib import Path
+from urllib.parse import urlparse
 
 
 # =========================================================
-# CONTROLLED CRAWLER CONFIGURATION
+# CONTROLLED FIXTURE CONFIGURATION
 # =========================================================
 
-ALLOWED_HOSTS = {
-    "127.0.0.1",
-    "localhost"
-}
+BACKEND_ROOT = (
+    Path(__file__)
+    .resolve()
+    .parents[1]
+)
 
-ALLOWED_PORTS = {
-    8081
-}
+
+FIXTURE_ROOT = (
+    BACKEND_ROOT
+    / "fixtures"
+    / "controlled_sources"
+)
+
 
 MAX_PAGES = 10
-
 MAX_DEPTH = 2
-
 MAX_RESPONSE_BYTES = 1_000_000
 
 
@@ -37,7 +40,6 @@ class PageParser(HTMLParser):
         super().__init__()
 
         self.text_parts = []
-
         self.links = []
 
         self.ignore_text = False
@@ -50,6 +52,7 @@ class PageParser(HTMLParser):
     ):
 
         tag = tag.lower()
+
 
         if tag in {
             "script",
@@ -65,7 +68,8 @@ class PageParser(HTMLParser):
 
                 if (
                     key.lower() == "href"
-                    and value
+                    and
+                    value
                 ):
 
                     self.links.append(
@@ -116,49 +120,6 @@ class PageParser(HTMLParser):
 
 
 # =========================================================
-# URL SECURITY VALIDATION
-# =========================================================
-
-def validate_controlled_url(
-    url: str
-):
-
-    parsed = urlparse(
-        url
-    )
-
-
-    if parsed.scheme != "http":
-
-        raise ValueError(
-            "Controlled crawler only allows HTTP."
-        )
-
-
-    if parsed.hostname not in ALLOWED_HOSTS:
-
-        raise ValueError(
-            "Crawler blocked a non-local host."
-        )
-
-
-    port = (
-        parsed.port
-        or 80
-    )
-
-
-    if port not in ALLOWED_PORTS:
-
-        raise ValueError(
-            "Crawler blocked an unauthorized port."
-        )
-
-
-    return parsed
-
-
-# =========================================================
 # CONTENT HASH
 # =========================================================
 
@@ -166,83 +127,146 @@ def calculate_content_hash(
     content: str
 ):
 
-    return (
-        hashlib.sha256(
-            content.encode(
-                "utf-8"
-            )
+    return hashlib.sha256(
+        content.encode(
+            "utf-8"
         )
-        .hexdigest()
-    )
+    ).hexdigest()
 
 
 # =========================================================
-# FETCH PAGE
+# SAFE FIXTURE PATH
 # =========================================================
 
-def fetch_page(
-    url: str
+def get_safe_fixture_path(
+    relative_path: str
 ):
 
-    validate_controlled_url(
-        url
+    if not relative_path:
+
+        raise ValueError(
+            "Fixture path is empty."
+        )
+
+
+    parsed = urlparse(
+        relative_path
     )
 
 
-    request = Request(
-        url,
-        headers={
-            "User-Agent":
-                "DDWMS-ControlledCrawler/1.0"
-        }
+    # Block HTTP, HTTPS, file:// etc.
+    if (
+        parsed.scheme
+        or
+        parsed.netloc
+    ):
+
+        raise ValueError(
+            "External URLs are not allowed "
+            "in controlled fixtures."
+        )
+
+
+    clean_path = (
+        parsed.path
+        .lstrip("/")
     )
 
 
-    with urlopen(
-        request,
-        timeout=5
-    ) as response:
+    candidate = (
+        FIXTURE_ROOT
+        / clean_path
+    ).resolve()
 
-        content_type = (
-            response.headers
-            .get(
-                "Content-Type",
-                ""
-            )
-            .lower()
+
+    root = (
+        FIXTURE_ROOT
+        .resolve()
+    )
+
+
+    # Prevent ../ path traversal
+    try:
+
+        candidate.relative_to(
+            root
+        )
+
+    except ValueError:
+
+        raise ValueError(
+            "Fixture path escaped "
+            "the controlled directory."
         )
 
 
-        if "text/html" not in content_type:
+    if (
+        candidate.suffix.lower()
+        != ".html"
+    ):
 
-            raise ValueError(
-                "Crawler only processes HTML pages."
-            )
-
-
-        raw_content = (
-            response.read(
-                MAX_RESPONSE_BYTES + 1
-            )
+        raise ValueError(
+            "Controlled crawler only "
+            "processes HTML fixture files."
         )
 
 
-        if (
-            len(raw_content)
-            > MAX_RESPONSE_BYTES
-        ):
-
-            raise ValueError(
-                "Page exceeded crawler size limit."
-            )
+    return candidate
 
 
-        html = (
-            raw_content.decode(
-                "utf-8",
-                errors="replace"
-            )
+# =========================================================
+# READ FIXTURE PAGE
+# =========================================================
+
+def read_fixture_page(
+    relative_path: str
+):
+
+    file_path = (
+        get_safe_fixture_path(
+            relative_path
         )
+    )
+
+
+    if not file_path.exists():
+
+        raise FileNotFoundError(
+            f"Controlled fixture not found: "
+            f"{relative_path}"
+        )
+
+
+    if not file_path.is_file():
+
+        raise ValueError(
+            "Controlled fixture is "
+            "not a valid file."
+        )
+
+
+    file_size = (
+        file_path.stat()
+        .st_size
+    )
+
+
+    if (
+        file_size
+        > MAX_RESPONSE_BYTES
+    ):
+
+        raise ValueError(
+            "Controlled fixture exceeded "
+            "the maximum allowed size."
+        )
+
+
+    html = (
+        file_path.read_text(
+            encoding="utf-8"
+        )
+    )
 
 
     parser = PageParser()
@@ -262,43 +286,73 @@ def fetch_page(
 
 
 # =========================================================
-# SAME-ORIGIN CHECK
+# SAFE LINK RESOLUTION
 # =========================================================
 
-def is_allowed_link(
-    base_url: str,
-    candidate_url: str
+def resolve_fixture_link(
+    current_file: str,
+    href: str
 ):
+
+    if not href:
+
+        return None
+
+
+    parsed = urlparse(
+        href
+    )
+
+
+    # Never allow external links
+    if (
+        parsed.scheme
+        or
+        parsed.netloc
+    ):
+
+        return None
+
+
+    path = (
+        parsed.path
+        .strip()
+    )
+
+
+    if not path:
+
+        return None
+
+
+    current_path = Path(
+        current_file
+    )
+
+
+    combined = (
+        current_path.parent
+        / path
+    )
+
+
+    normalized = (
+        combined.as_posix()
+    )
+
 
     try:
 
-        base = urlparse(
-            base_url
+        get_safe_fixture_path(
+            normalized
         )
-
-        candidate = urlparse(
-            candidate_url
-        )
-
-
-        validate_controlled_url(
-            candidate_url
-        )
-
-
-        return (
-            base.hostname
-            == candidate.hostname
-            and
-            (base.port or 80)
-            ==
-            (candidate.port or 80)
-        )
-
 
     except Exception:
 
-        return False
+        return None
+
+
+    return normalized
 
 
 # =========================================================
@@ -306,17 +360,26 @@ def is_allowed_link(
 # =========================================================
 
 def crawl_controlled_source(
-    start_url: str
+    start_file: str = "index.html"
 ):
 
-    validate_controlled_url(
-        start_url
+    if not FIXTURE_ROOT.exists():
+
+        raise FileNotFoundError(
+            "Controlled fixture directory "
+            "was not found."
+        )
+
+
+    # Validate start page
+    get_safe_fixture_path(
+        start_file
     )
 
 
     queue = [
         (
-            start_url,
+            start_file,
             0
         )
     ]
@@ -330,37 +393,37 @@ def crawl_controlled_source(
     while (
         queue
         and
-        len(visited)
-        < MAX_PAGES
+        len(visited) < MAX_PAGES
     ):
 
-        current_url, depth = (
+        current_file, depth = (
             queue.pop(0)
         )
 
 
-        if current_url in visited:
+        if current_file in visited:
 
             continue
 
 
         visited.add(
-            current_url
+            current_file
         )
 
 
         try:
 
-            page = fetch_page(
-                current_url
+            page = (
+                read_fixture_page(
+                    current_file
+                )
             )
-
 
         except Exception as error:
 
             print(
-                "Crawler warning:",
-                current_url,
+                "Controlled crawler warning:",
+                current_file,
                 error
             )
 
@@ -390,13 +453,16 @@ def crawl_controlled_source(
         collected_records.append(
             {
                 "source_name":
-                    "Controlled Monitoring Source",
+                    "Controlled Monitoring Fixture",
 
                 "source_type":
-                    "controlled_crawler",
+                    "controlled_fixture",
 
                 "source_reference":
-                    current_url,
+                    (
+                        "fixture://controlled/"
+                        f"{current_file}"
+                    ),
 
                 "content":
                     content,
@@ -417,28 +483,27 @@ def crawl_controlled_source(
 
         for href in page["links"]:
 
-            absolute_url = urljoin(
-                current_url,
-                href
+            next_file = (
+                resolve_fixture_link(
+                    current_file,
+                    href
+                )
             )
 
 
-            if not is_allowed_link(
-                start_url,
-                absolute_url
-            ):
+            if not next_file:
 
                 continue
 
 
-            if absolute_url in visited:
+            if next_file in visited:
 
                 continue
 
 
             queue.append(
                 (
-                    absolute_url,
+                    next_file,
                     depth + 1
                 )
             )
@@ -448,14 +513,14 @@ def crawl_controlled_source(
 
 
 # =========================================================
-# MANUAL TEST
+# LOCAL TEST
 # =========================================================
 
 if __name__ == "__main__":
 
     records = (
         crawl_controlled_source(
-            "http://127.0.0.1:8081/index.html"
+            "index.html"
         )
     )
 
@@ -465,13 +530,12 @@ if __name__ == "__main__":
     )
 
     print(
-        "CONTROLLED CRAWLER RESULTS"
+        "CONTROLLED FIXTURE RESULTS"
     )
 
     print(
         "=============================="
     )
-
 
     print(
         "Pages collected:",
